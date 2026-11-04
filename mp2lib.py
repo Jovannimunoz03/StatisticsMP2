@@ -1,106 +1,45 @@
 import numpy as np
+#imports error function to calculate the Gaussian Q function 
 from scipy.special import erfc
-from scipy.stats import norm
 
+#Generates exponential random variables using inverse CDF of uniform random numbers with rate lam > 0
 def inv_cdf_exponential(u, lam):
-    """
-    Exponential inverse CDF.
-    """
     u = np.asarray(u, dtype=float)
-    
-    if not np.isfinite(lam) or lam <= 0:
-        raise ValueError("lam must be positive and finite.")
-    if np.any(~np.isfinite(u)) or np.any((u < 0) | (u >= 1)):
-        raise ValueError("u must satisfy 0 <= u < 1.")
-
+    if lam <= 0:
+        raise ValueError("lam must be positive")
+    #Restrict values to a interval and u is stable when closer to 0
+    #prevents a uniform draw exactly equal to 1 because it would produce infinity
+    u = np.clip(u, 0.0, np.nextafter(1.0, 0.0))
     return -np.log1p(-u) / lam
 
+#generates Rayleigh random variables using inverse CDF of uniform random numbers with scale of sigma > 0
 def inv_cdf_rayleigh(u, sigma):
-    """
-    Rayleigh inverse CDF.
-    """
     u = np.asarray(u, dtype=float)
+    if sigma <= 0:
+        raise ValueError("sigma must be positive")
+    u = np.clip(u, 0.0, np.nextafter(1.0, 0.0))
+    return sigma * np.sqrt(-2.0 * np.log1p(-u))
 
-    if not np.isfinite(sigma) or sigma <= 0:
-        raise ValueError("sigma must be positive and finite.")
-
-    if np.any(~np.isfinite(u)) or np.any((u < 0) | (u >= 1)):
-        raise ValueError("u must satisfy 0 <= u < 1.")
-
-    return sigma * np.sqrt(-2 * np.log1p(-u))
-
-
+#Converts n uniform random numbers into samples from another distribution or rng to use them in inv_cdf
 def sample_by_inversion(inv_cdf, n, rng, **kw):
-    """
-    Draw n uniform values using the supplied generator, then transform them using the supplied inverse CDF. This function never creates or seeds a generator.
-    """
     u = rng.random(n)
-    return np.asarray(inv_cdf(u, **kw))
+    return inv_cdf(u, **kw)
 
+#Measures how closely the simulated samples match the theoretical CDF
+'Used to return the largest gap between emprirical and anaytical CDF so that it can be compared to the 95 percent critical value 1.36/sqrt(N): .0136 at N=10^4 and .0043 at N=10^5'
 def ks_statistic(samples, cdf):
-    """
-    Return the two-sided one-sample KS statistic. Checks both sides of every empirical-CDF jump.
-    """
     x = np.sort(np.asarray(samples, dtype=float))
-
-    if (
-        x.ndim != 1
-        or x.size == 0
-        or not np.all(np.isfinite(x))
-    ):
-        raise ValueError(
-            "samples must be a nonempty, finite 1-D array."
-        )
+    x = x[np.isfinite(x)]
+    n = len(x)
+    if n == 0:
+        raise ValueError("samples must contain at least one finite value")
     F = np.asarray(cdf(x), dtype=float)
-
-    if F.shape != x.shape or not np.all(np.isfinite(F)):
-        raise ValueError(
-            "cdf must return one finite value per sample."
-        )
-    n = x.size
     i = np.arange(1, n + 1)
+    d_plus = np.max(i / n - F)
+    d_minus = np.max(F - (i - 1) / n)
+    return float(max(d_plus, d_minus))
 
-    D_plus = np.max(i / n - F)
-    D_minus = np.max(F - (i - 1) / n)
-
-    return float(max(D_plus, D_minus))
-
+'Calculates the Gaussian Tail probabilites or the probability that a standard Gaussian random variable exceeds a given value using Q(x) = P(Z > x) where Z is a standard normal'
 def q_function(x):
-    """
-    Gaussian tail probability from the complementary error function.
-    Q(x) = 0.5 * erfc(x / sqrt(2)).
-    """
-    x = np.asarray(x, dtype=float)
-    return 0.5 * erfc(x / np.sqrt(2))
-
-def squared_gaussian_cdf(y):
-    """
-    CDF of Y = X^2 for X ~ N(0,1).
-    F_Y(y) = Phi(sqrt(y)) - Phi(-sqrt(y)), for y >= 0.
-    """
-    y = np.asarray(y, dtype=float)
-    root = np.sqrt(np.maximum(y, 0.0))
-
-    return np.where(
-        y <= 0,
-        0.0,
-        norm.cdf(root) - norm.cdf(-root)
-    )
-
-def squared_gaussian_pdf(y):
-    """
-    PDF of Y = X^2 for X ~ N(0,1).
-    f_Y(y) = exp(-y/2) / sqrt(2*pi*y), for y > 0.
-    The right-hand limit at zero is infinite. There is no point mass at zero.
-    """
-    y = np.asarray(y, dtype=float)
-    result = np.zeros_like(y)
-    positive = y > 0
-    result[positive] = (
-        np.exp(-y[positive] / 2)
-        / np.sqrt(2 * np.pi * y[positive])
-    )
-    result[y == 0] = np.inf
-    result[np.isnan(y)] = np.nan
-
-    return result
+    #0.5 is used because half of the standard Gaussian distribution is above 0
+    return 0.5 * erfc(np.asarray(x, dtype=float) / np.sqrt(2.0))
