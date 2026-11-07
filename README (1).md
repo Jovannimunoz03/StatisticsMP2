@@ -4,4 +4,4 @@ Ryan: Step 2 and 8
 Miguel: Step 4 and 7
 Andy: Step 3 and 6
 Seed value: 629064958
-Runtime: 
+Runtime: 40s 
