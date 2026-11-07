@@ -5,3 +5,5 @@ Miguel: Step 4 and 7
 Andy: Step 3, 6, bonus A and B
 Seed value: 629064958
 Runtime: 51s 
+Youtube Video Demo:
+https://youtu.be/8wZuGeWIsD8
