@@ -1,3 +1,5 @@
+MP2 Project for Statistics
+
 Team Members and Who did what:
 Jovanni: Step 1 and 5
 Ryan: Step 2 and 8
